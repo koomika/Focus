@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+<meta charset="UTF-8">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Kiinnostukset">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="manifest" href='data:application/manifest+json,{"name":"Kiinnostukset","short_name":"Kiinnostukset","display":"standalone","background_color":"#141d27","theme_color":"#141d27"}'>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Kiinnostukset</title>
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { height:100%; font-family:-apple-system,'Segoe UI',Roboto,sans-serif; overflow:hidden; }
+  body {
+    color:#fff; user-select:none; position:fixed; inset:0;
+    background: linear-gradient(160deg,#2b3a4a 0%,#1c2733 45%,#141d27 100%);
+  }
+  body::before {
+    content:''; position:fixed; inset:-50px; z-index:0; pointer-events:none;
+    background:
+      radial-gradient(ellipse 60% 40% at 20% 10%, rgba(120,160,200,.35), transparent 60%),
+      radial-gradient(ellipse 50% 35% at 85% 30%, rgba(90,120,150,.30), transparent 60%),
+      radial-gradient(ellipse 55% 45% at 50% 95%, rgba(140,110,80,.22), transparent 60%);
+    filter: blur(30px);
+  }
+  .app {
+    position:relative; z-index:1; height:100dvh; max-width:560px; margin:0 auto;
+    padding:calc(env(safe-area-inset-top) + 16px) 14px calc(env(safe-area-inset-bottom) + 16px);
+    display:flex; flex-direction:column;
+  }
+  header { display:flex; align-items:center; justify-content:space-between; padding:2px 4px 14px; flex:0 0 auto; }
+  header h1 { font-size:clamp(19px,5.5vw,26px); font-weight:700; letter-spacing:.3px; text-shadow:0 2px 8px rgba(0,0,0,.4); }
+  .hdr-btns { display:flex; gap:10px; }
+  .round-btn {
+    width:38px; height:38px; border-radius:50%; border:1px solid rgba(255,255,255,.25);
+    background:rgba(255,255,255,.12); color:#fff; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; backdrop-filter: blur(8px);
+    transition: transform .12s ease; flex:0 0 auto;
+  }
+  .round-btn:active { transform:scale(.88); }
+  .round-btn svg { width:18px; height:18px; }
+
+  /* 4 x 4 -ruudukko, laatat neliöitä */
+  .grid {
+    flex:1 1 auto; min-height:0; align-content:stretch;
+    display:grid; grid-template-columns:repeat(4,1fr); grid-template-rows:repeat(4,1fr);
+    gap:clamp(6px,1.8vw,12px);
+  }
+  .tile {
+    position:relative; min-width:0; min-height:0; border-radius:clamp(14px,4.5vw,22px); cursor:pointer; overflow:hidden;
+    background:rgba(15,25,38,.72); border:1px solid rgba(255,255,255,.14);
+    box-shadow:0 6px 18px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.08);
+    backdrop-filter: blur(10px);
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8%;
+    transition: transform .12s ease, border-color .2s, box-shadow .2s;
+    animation: pop .25s ease backwards;
+  }
+  @keyframes pop { from{ transform:scale(.8); opacity:0;} to{ transform:scale(1); opacity:1;} }
+  .tile:active { transform:scale(.94); }
+  .tile.selected { border-color:rgba(120,200,255,.8); box-shadow:0 0 0 2px rgba(120,200,255,.35), 0 6px 22px rgba(80,170,255,.25); }
+  .tile .icon svg { width:clamp(22px,7vw,40px); height:clamp(22px,7vw,40px); stroke-width:1.4; }
+  .tile .label {
+    font-size:clamp(9px,2.8vw,14px); font-weight:600; letter-spacing:.2px; text-align:center;
+    padding:0 3px; line-height:1.12; text-shadow:0 1px 4px rgba(0,0,0,.5);
+    max-width:100%;
+    overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
+    /* tavutus pitkille sanoille */
+    hyphens:auto; -webkit-hyphens:auto; -moz-hyphens:auto; overflow-wrap:break-word;
+  }
+  .tile.add-tile { border-style:dashed; border-color:rgba(255,255,255,.35); background:rgba(255,255,255,.06); }
+
+  .del {
+    position:absolute; top:5px; right:5px; width:20px; height:20px; border-radius:50%; z-index:2;
+    background:rgba(255,70,70,.92); border:none; color:#fff; font-size:11px; font-weight:700;
+    display:none; align-items:center; justify-content:center; cursor:pointer; line-height:1;
+  }
+  body.editing .del { display:flex; }
+  body.editing .tile { animation: wiggle 0.35s ease infinite alternate; animation-delay:inherit; }
+  @keyframes wiggle { from{ transform:rotate(-.8deg);} to{ transform:rotate(.8deg);} }
+
+  .reader, .art {
+    position:fixed; inset:0; z-index:15; max-width:560px; margin:0 auto;
+    background:rgba(12,20,31,.97); backdrop-filter:blur(16px);
+    transform:translateY(102%); transition:transform .3s cubic-bezier(.2,.9,.3,1);
+    display:flex; flex-direction:column;
+    padding:calc(env(safe-area-inset-top) + 14px) 16px calc(env(safe-area-inset-bottom) + 14px);
+  }
+  .art { z-index:16; }
+  .reader.open, .art.open { transform:translateY(0); }
+  .reader-head { display:flex; align-items:center; gap:12px; padding:2px 2px 14px; flex:0 0 auto; }
+  .reader-head h2 { font-size:20px; font-weight:700; flex:1; text-shadow:0 2px 8px rgba(0,0,0,.4); hyphens:auto; }
+  .reader-head .sub { font-size:12px; opacity:.55; font-weight:400; display:block; margin-top:2px; }
+  .reader-list, .art-body { flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+  .reader-list { display:flex; flex-direction:column; gap:12px; }
+  .news {
+    background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12);
+    border-radius:18px; padding:14px 16px; cursor:pointer;
+  }
+  .news:active { background:rgba(255,255,255,.1); }
+  .news .n-title { font-size:15px; font-weight:700; margin-bottom:6px; line-height:1.3; hyphens:auto; }
+  .news .n-sum { font-size:13.5px; opacity:.85; line-height:1.45; margin-bottom:8px; hyphens:auto; }
+  .news .n-meta { font-size:11.5px; opacity:.5; }
+  .n-tag {
+    display:inline-block; font-size:10.5px; font-weight:700; letter-spacing:.5px;
+    padding:3px 8px; border-radius:8px; margin-bottom:8px;
+    background:rgba(120,200,255,.15); color:#8ed4ff; border:1px solid rgba(120,200,255,.35);
+  }
+  .n-tag.long { background:rgba(255,180,80,.15); color:#ffcf8e; border-color:rgba(255,180,80,.4); }
+
+  .art-body { display:flex; flex-direction:column; gap:14px; }
+  .art-body h3 { font-size:19px; line-height:1.35; hyphens:auto; }
+  .art-body .a-meta { font-size:12px; opacity:.5; }
+  .sum-box {
+    background:rgba(120,200,255,.08); border:1px solid rgba(120,200,255,.3);
+    border-radius:16px; padding:14px 16px;
+  }
+  .sum-box.gold { background:rgba(255,190,90,.07); border-color:rgba(255,190,90,.3); }
+  .sum-box .sb-title {
+    font-size:11px; font-weight:800; letter-spacing:1.2px; color:#8ed4ff;
+    text-transform:uppercase; margin-bottom:8px; display:flex; align-items:center; gap:6px;
+  }
+  .sum-box.gold .sb-title { color:#ffcf8e; }
+  .sum-box .sb-title svg { width:14px; height:14px; }
+  .sum-box p { font-size:14px; line-height:1.55; opacity:.92; hyphens:auto; }
+  .full-btn {
+    display:flex; align-items:center; justify-content:center; gap:8px;
+    padding:14px; border-radius:16px; font-size:15px; font-weight:700; cursor:pointer;
+    background:linear-gradient(135deg,#3f8cff,#6fd3ff); color:#0a1622; border:none; text-decoration:none;
+  }
+  .full-btn svg { width:17px; height:17px; }
+  .reader-empty { text-align:center; opacity:.55; margin-top:50%; font-size:15px; line-height:1.6; }
+
+  .sheet {
+    position:fixed; left:0; right:0; bottom:0; z-index:10; max-width:560px; margin:0 auto;
+    background:rgba(18,28,42,.97); border:1px solid rgba(255,255,255,.15); border-bottom:none;
+    border-radius:26px 26px 0 0; padding:20px 20px calc(env(safe-area-inset-bottom) + 20px);
+    transform:translateY(105%); transition:transform .28s cubic-bezier(.2,.9,.3,1.1);
+    backdrop-filter: blur(14px);
+  }
+  .sheet.open { transform:translateY(0); }
+  .sheet h2 { font-size:19px; margin-bottom:14px; }
+  .sheet input {
+    width:100%; padding:13px 15px; border-radius:14px; font-size:16px; color:#fff;
+    background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.25); outline:none; margin-bottom:14px;
+  }
+  .sheet input:focus { border-color:rgba(120,200,255,.8); }
+  .icon-picker { display:grid; grid-template-columns:repeat(6,1fr); gap:8px; margin-bottom:16px; }
+  .icon-pick {
+    aspect-ratio:1; border-radius:14px; border:1px solid rgba(255,255,255,.18); cursor:pointer;
+    background:rgba(255,255,255,.05); color:#fff; display:flex; align-items:center; justify-content:center;
+  }
+  .icon-pick svg { width:24px; height:24px; }
+  .icon-pick.sel { border-color:rgba(120,200,255,.9); background:rgba(120,200,255,.18); }
+  .btn {
+    width:100%; padding:14px; border-radius:16px; border:none; font-size:16px; font-weight:700; cursor:pointer;
+    background:linear-gradient(135deg,#3f8cff,#6fd3ff); color:#0a1622;
+  }
+  .btn:active { transform:scale(.98); }
+
+  .toast {
+    position:fixed; left:50%; bottom:60px; transform:translateX(-50%) translateY(20px); z-index:30;
+    background:rgba(0,0,0,.75); padding:10px 18px; border-radius:20px; font-size:14px;
+    opacity:0; pointer-events:none; transition:all .25s; white-space:nowrap;
+  }
+  .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>Kiinnostukset</h1>
+    <div class="hdr-btns">
+      <button class="round-btn" id="editBtn" title="Muokkaa"><i data-lucide="pencil"></i></button>
+    </div>
+  </header>
+  <div class="grid" id="grid"></div>
+</div>
+
+<div class="reader" id="reader">
+  <div class="reader-head">
+    <button class="round-btn" id="backBtn"><i data-lucide="arrow-left"></i></button>
+    <h2 id="readerTitle">Aihe</h2>
+  </div>
+  <div class="reader-list" id="readerList"></div>
+</div>
+
+<div class="art" id="art">
+  <div class="reader-head">
+    <button class="round-btn" id="artBackBtn"><i data-lucide="arrow-left"></i></button>
+    <h2 style="font-size:18px;">Artikkeli</h2>
+  </div>
+  <div class="art-body" id="artBody"></div>
+</div>
+
+<div class="sheet" id="sheet">
+  <h2>Uusi kiinnostus</h2>
+  <input id="nameInput" type="text" maxlength="24" placeholder="Nimi (esim. CAD & AI)">
+  <div class="icon-picker" id="iconPicker"></div>
+  <button class="btn" id="saveBtn">Lisää</button>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const ICONS = ['glasses','box','eye','droplet','cpu','robot','wrench','cog','zap','layers','rocket','circuit-board'];
+const DEFAULTS = [
+  { id:'rokid',    name:'Rokid',        icon:'glasses', sel:true },
+  { id:'cad',      name:'CAD & AI',     icon:'box',     sel:true },
+  { id:'vision',   name:'Konenäkö',     icon:'eye',     sel:false },
+  { id:'hydraul',  name:'Hydrauliikka', icon:'droplet', sel:false },
+  { id:'auto',     name:'Automaatio',   icon:'cpu',     sel:false },
+  { id:'ml',       name:'Koneoppiminen',icon:'circuit-board', sel:false },
+];
+
+/* Koeajo #2 (30.9.2026): jokaisella artikkelilla s5 (~5 lausetta) ja s30 (~30 lausetta
+   tai alle 30 lauseen artikkeleissa koko artikkeli suomeksi) + linkki alkuperäiseen */
+const SAMPLE_NEWS = {
+  cad: [
+    { tag:'UUTINEN', long:false, url:'https://openai.com',
+      title:'OpenAI laajensi GPT-6-perhettä: Sol ja Luna',
+      src:'openai.com', date:'22.9.2026',
+      s5:'OpenAI päivitti GPT-6 Astran tuotesivun 22.9.2026 ja kertoi laajentavansa GPT-6-malliperhettä kahdella uudella mallilla: GPT-6 Sol ja GPT-6 Luna. Molemmat ovat Astran sisarmalleja samasta malliperheestä. Tarkoituksena on tarjota kevyempiä ja edullisempia vaihtoehtoja tehtäviin, joissa Astran täysi suorituskyky ei ole tarpeen. Käytännössä rutiinitehtäviin voi valita halvemman mallin ja säästää Astran vaativimpiin töihin. Nyt on hyvä hetki vertailla kolmen mallin toimintaa omissa CAD-kokeiluissa.',
+      s30:'OpenAI kertoi 22. syyskuuta 2026 laajentavansa GPT-6-malliperhettä kahdella uudella mallilla, GPT-6 Solilla ja GPT-6 Lunalla. Kyseessä ovat Astran sisarmallit, jotka perustuvat samaan arkkitehtuuriin ja koulutusprosessiin. Uusien mallien tehtävä on kattaa kevyemmät käyttötapaat, joissa ei tarvita Astran huippuluokan päättelykykyä. Tämä jakaa GPT-6-perheen selkeästi kahteen kerrokseen: vaativat monivaiheiset tehtävät Astralle ja nopeat rutiinitehtävät Solille tai Lunalle. Käyttäjän kannalta merkittävin vaikutus on kustannusten hallinta, koska rutiinitehtävien ajaminen halvemmalla mallilla säästää budjettia vaativiin töihin. Tarkka hinnoittelu kannattaa tarkistaa OpenAI:n omasta hinnastosta, koska julkaisun yhteydessä sitä ei välttämättä vielä kerrottu kaikilta osin. Sovelluskehittäjille ja tehosteiden käyttäjille suositeltu käytäntö on testata sama tehtävä kaikilla kolmella mallilla ja mitata hinta, nopeus ja virhemäärä. CAD-käytössä esimerkiksi makron kirjoitus tai piirustusten tarkistus voi hyvin onnistua kevyemmällä mallilla, kun taas kokoonpanon suunnittelu vaatii Astran. Mallien valikoima myös ennustaa sitä, että tekoälyn käyttökustannukset laskevat kilpailun myötä. On syytä seurata, tuodaanko Sol ja Luna myös rajapintaan samoilla ominaisuuksilla kuin ChatGPT-käyttöliittymään. Vertailussa kannattaa kiinnittää huomiota konteksti-ikkunan kokoon ja tulostoksen enimmäispituuteen, jotka voivat erota mallien välillä. Kokonaisuutena laajennus on hyvä uutinen kaikille, jotka käyttävät tekoälyä suunnittelutyössä säännöllisesti.' },
+    { tag:'UUTINEN', long:true, url:'https://openai.com',
+      title:'Dots: aina päällä olevat agentit ChatGPT:ssa',
+      src:'openai.com', date:'29.9.2026',
+      s5:'OpenAI julkaisi 29.9. "dots"-ominaisuuden: aina päällä olevia agentteja ChatGPT:ssa, jotka pyörivät GPT-6 Astralla. Jokaisella dotilla on oma pilvitietokone ja selain, ja ne voivat yhdistyä yli 4 000 sovellukseen. Saatavuus alkaa ChatGPT Pro -tilaajille ja Business Premium -paikoille; Enterprise-asiakkaat saavat betaversion. Dots voi hoitaa esimerkiksi jatkuvaa uutisseurantaa ilman erillistä backendiä. Se on samalla kilpailija ja kumppani sille seuranta-appi-idealle, jota ollaan rakentamassa.',
+      s30:'OpenAI julkaisi 29. syyskuuta 2026 uuden "dots"-ominaisuuden, joka tuo ChatGPT:hin aina päällä olevia tekoälyagentteja. Agentit käyttävät GPT-6 Astra -mallia ja jokaisella niistä on oma pilvitietokone sekä oma selain. Tämä tarkoittaa sitä, että agentti voi itsenäisesti käydä verkkosivuilla, täyttää lomakkeita ja käsitellä tiedostoja ilman että käyttäjä on paikalla. OpenAI kertoo agenttien yhdistyvän yli neljään tuhanteen sovellukseen ja verkkopalveluun. Käyttötarkoituksiksi mainitaan muun muassa säännöllinen tiedonkeruu, kalenterien hallinta ja projektien seuranta. Saatavuus alkaa ChatGPT Pro -tilaajille sekä Business-tilien Premium-paikoille, ja Enterprise-asiakkaat pääsevat mukaan betaversiona. Hinnoittelun yksityiskohdat kannattaa tarkistaa OpenAI:n sivuilta, koska jatkuva toiminta kuluttaa todennäköisesti laskentakrediittejä. Sinun kannaltasi dots on mielenkiintoinen kahdella tavalla. Toisaalta se voi korvata osan siitä backend-työstä, jonka ollaan suunnittelemassa uutisseurantaan. Toisaalta se ei korvaa omia kustomoituja näkymiä, kuten juuri rakennettua kiinnostusruudukkoa ja lukunäkymää. Mahdollinen hybridimalli olisi, että dots hoitaa tiedonhaun ja oma appi esittämisen ja hallinnan. Kannattaa myös muistaa, että agenttien antamat vastaukset kannattaa edelleen tarkistaa, koska aina päällä oleva toiminta voi tuottaa virheitä huomaamatta. Tietosuojan kannalta on hyvä miettiä, mitä tunnisteita dotille annetaan käyttöoikeuksia. Kokonaisuutena julkaisu on merkittävä askel kohti sitä, että tekoäly tekee työn sijasta myös sen jatkuvan seurannan.' },
+    { tag:'DEMO', long:false, url:'https://www.youtube.com',
+      title:'MecAgent + Astra: robotin varsi SolidWorks 2026:lla',
+      src:'youtube.com', date:'9.2026',
+      s5:'Uusi MecAgent-harness-demo esittelee SolidWorks 2026:lla robot arm -kokoonpanon. Kokoonpano syntyi yhdestä promptista: 11 osaa ja yksi pääkokoonpano. Demo jatkaa aiempia turbojet-videoita, joissa osia oli 41. Harnessin kehitys näyttää etenevän nopeasti, kun uusia demoja julkaistaan viikon sisällä. Text-to-CAD on nyt kokeiltavissa myös pienillä kokoonpanoilla.',
+      s30:'MecAgent-harnessin kehittäjät julkaisivat uuden videon, jossa GPT-6 Astra generoi robot arm -kokoonpanon SolidWorks 2026 -ohjelmassa. Videon mukaan koko kokoonpano syntyi yhdestä luonnollisen kielen promptista. Lopputuloksessa on 11 erillistä osaa ja yksi pääkokoonpano. Tämä on jatkoa aiemmille demoille, joissa samalla menetelmällä rakennettiin muun muassa 41-osainen turbojet-moottori. Demo kertoo, että harnessin kypsyys on edennyt yksittäisistä osista kohti mielekkäitä kokonaisuuksia. Pienempi osamäärä tekee tuloksen myös helpommaksi tarkistaa ja mitata. Videon perusteella työnkulku näyttää edelleen vaativan ohjelmallisen välikerroksen, joka kääntää mallin komennoiksi. On myös syytä muistaa, että demo videolla ei kerro vielä mitään toleransseista, materiaalivalinnoista tai valmistettavuudesta. Näissä demossa syntyneet mallit ovat siis lähtökohtia, ei valmiita suunnitelmia. Sinun kannattaisi kokeilla samaa harnessia omalla tutulla kokoonpanolla ja verrata syntynyttä mallia omaan käsityöhösi. Näin näet suoraan, mihin työkalu jo yltää ja missä se vielä kompastuu.' },
+    { tag:'OPAS', long:true, url:'https://www.getleo.ai',
+      title:'Leo AI: "AI for Mechanical Engineers" -opas',
+      src:'getleo.ai', date:'25.9.2026',
+      s5:'Leo AI julkaisi 25.9. kattavan oppaan tekoälyn käytöstä konetekniikassa. Opas on poikkeuksellisen rehellinen työkalujen rajoituksista. Keskeisin käytännön havainto koskee Ansys AI+: FEA-työnkulun generointi lyhenee tyypillisestä 4–6 tunnista alle tuntiin. Ratkaisevat parametrit vaativat kuitenkin edelleen kokeneen insinöörin arvion. Opas sopii lukulistalle ennen omia työkaluvalintoja.',
+      s30:'Leo AI julkaisi syyskuun lopussa laajan oppaan, jonka otsikko on "AI for Mechanical Engineers". Opas käy läpi tekoälyn käyttömahdollisuudet konetekniikan eri osa-alueilla. Sen lähestymistapa on poikkeuksellisen tasapainoinen, koska se esittelee mahdollisuudet ja rajoitukset rinnakkain. Yksi oppaan keskeisimmistä esimerkeistä koskee Ansys AI+ -ohjelmistoa. Sen avulla elementtianalyysin eli FEA:n työnkulku voi lyhentyä tyypillisestä neljästä kuudesta tunnista alle tuntiin. Ohjelma generoi alkuverkon ja ehdottaa reunaehtoja automaattisesti. Tämä vapauttaa insinöörin aikaa itse laskennan sijaan asetusten tarkistukseen ja tulosten tulkintaan. Opas korostaa kuitenkin, että automatiikka ei poista asiantuntijuutta. Ratkaisevat mallinnuspäätökset, kuten materiaalimallit ja kuormitukset, vaativat edelleen kokeneen insinöörin arvion. Ilman sitä laskennan nopeus voi johtaa nopeasti virheellisiin tuloksiin. Opas käsittelee myös suunnittelun automatisointia ja dokumentaation generointia tekoälyllä. Lisäksi siinä arvioidaan useita markkinoilla olevia työkaluja, mukaan lukien Leo AI:n omia ominaisuuksia. Lukijalle jää selkeä kuva siitä, missä tekoäly jo säästää aikaa ja missä se on vielä kokeiluvaiheessa. Oppaan lopussa annetaan käytännön vinkkejä työkalujen kokeiluun omassa organisaatiossa. Kannattaa aloittaa pienellä, mitattavalla tehtävällä ja vertailla tulosta manuaaliseen työhön. Kokonaisuutena opas on erinomainen lähtökohta kaikille, jotka suunnittelevat tekoälyn käyttöönottoa konetekniikan työkalupakkiin.' },
+    { tag:'ANALYYSI', long:false, url:'https://cgaward.com.ua',
+      title:'Astra arkkitehtuurivisualisoinnissa – cgaward-analyysi',
+      src:'cgaward.com.ua', date:'6.9.2026',
+      s5:'Cgaward tarkastelee GPT-6 Astraa 3ds Max -työnkulujen näkökulmasta. Artikkelissa esitellään Blenderissä generoituja talomalleja ja pohditaan, soveltuuko työkalu ammattimaiseen arkkitehtuurivisualisointiin. Kirjoitus osoittaa, että AI-CAD kiinnostaa nyt myös arkkitehtipuolta. Mekaniikan rinnalle on noussut uusi käyttäjäryhmä.',
+      s30:'Ukrainalainen cgaward-sivusto julkaisi syyskuun alussa artikkelin, jossa arvioidaan GPT-6 Astran soveltuvuutta arkkitehtuurivisualisointiin. Artikkelin näkökulma on käytännönläheinen: voidaanko generatiivista tekoälyä hyödyntää 3ds Max -työnkulussa. Kirjoittaja esittelee esimerkkejä, joissa Blenderillä on generoitu talomalleja tekoälyn avulla. Keskeinen kysymys on, miten tällaiset mallit saadaan siirrettyä ammattimaiseen ohjelmaan ilman manuaalista korjausta. Artikkeli ei anna lopullista vastausta, mutta nostaa esille työnkulun pullonkaulat. Tärkein havainto on, että tekoäly tuottaa helposti geometriaa, mutta siistin mallin vieminen tuotantoputkeen vaatii vielä ihmisen työn. Samalla kirjoitus kertoo, että AI-CAD ei ole enää pelkästään mekaniikkasuunnittelijoiden asia. Arkkitehdit ja visualisoijat ovat nousemassa merkittäväksi käyttäjäryhmäksi. Tämä laajentaa sekä työkalumarkkinoita että vertailumateriaalin määrää. Sinun kannattaa seurata, miten 3ds Max ja muut visualisointiohjelmat reagoivat kehitykseen. Integraatiot ovat todennäköisesti seuraava askel, jossa kilpailu kiristyy.' },
+    { tag:'OPAS', long:false, url:'https://layer3labs.com',
+      title:'Layer3labs: GPT-6 Astra -käyttöopas',
+      src:'layer3labs.com', date:'9.9.2026',
+      s5:'Layer3labsin opas tiivistää GPT-6 Astran tekniset rajat käytännön kielellä. Keskeiset luvut: noin 1 050 000 tokenin konteksti-ikkuna ja 128 000 tokenin enimmäisvastaus. Mallin tietokatkaisu on 30.4.2026. Reasoning.effort-parametri skaalaa päättelyn laajuuden: maksimiasetus maksaa noin kymmenkertaisesti ja kestää noin kahdeksankertaisesti. Hyvä sääätöperusta omille Astra-kokeiluille.',
+      s30:'Layer3labs julkaisi syyskuussa oppaan, joka kokoaa yhteen GPT-6 Astran tekniset ominaisuudet ja käyttövinkit. Oppaan mukaan mallin konteksti-ikkuna on noin 1 050 000 tokenia, mikä on poikkeuksellisen suuri. Yksittäisen vastauksen enimmäispituus on 128 000 tokenia. Mallin tietokatkaisu sijoittuu huhtikuun loppuun 2026, joten sen jälkeen tapahtuneet asiat vaativat lisätietoa syötteessä. Opas esittelee myös reasoning.effort-parametrin, jolla käyttäjä säätää päättelyn syvyyttä. Alhaisella asetuksella vastaukset ovat nopeita ja edullisia, mutta vähemmän perusteltuja. Korkeimmalla asetuksella laatu paranee, mutta kustannus nousee noin kymmenkertaiseksi ja viive noin kahdeksankertaiseksi. Tämä tekee säätämisestä keskeisen taidon tehokkaassa käytössä. Opas suosittelee valitsemaan asetuksen tehtävän vaikeuden mukaan. Rutiinimuunnokset ja yhteenvedot kannattaa ajaa alhaisella asetuksella. Vaativat suunnittelu- ja päättelytehtävät vaativat korkeamman asetuksen. Käytännössä kannattaa mitata omilla työtehtävillä, missä kohtaa laadun ja hinnan käyrä taittuu. Opas toimii hyvänä pohjana myös omien promptien rakentamiselle. Sen taulukot teknisistä rajoista ovat hyödyllisiä nopeassa tarkistuksessa ennen isompaa ajoa.' },
+    { tag:'KIMI', long:false, url:'',
+      title:'Kimi-osio',
+      src:'–', date:'30.9.2026',
+      s5:'Tällä kierroksella ei löytynyt uutta Kimi-CAD-sisältöä 30 päivän ikkunassa. Taustatietona Kimi K3:n tekninen blogi (17.7.2026) ja K2.6:n julkaisu (21.4.2026) ovat ikkunan ulkopuolella. Molemmat kertovat, että Kimin agenttikoodauskehitys etenee nopeasti. Hakusanoja laajennetaan edelleen seuraaviin ajoihin.',
+      s30:'Koeajon Kimi-osiossa ei tällä kertaa ollut uusia artikkeleita viimeisen 30 päivän ikkunassa. Hakuja tehtiin useilla hakusanoilla, mutta tulokset osuivat ikkunan ulkopuolelle. Taustaksi mainittakoon, että Moonshot AI julkaisi Kimi K3:n teknisen blogin heinäkuussa 2026. Samoin Kimi K2.6 julkaistiin huhtikuussa 2026 avoimen lähdekoodin koodausmallina. Nämä julkaisut kertovat, että malliperheen kehitys on ollut nopeaa. Ne eivät kuitenkaan ole CAD-aiheisia vertailuja, vaan yleisiä teknisiä kuvauksia. CAD-käyttöön liittyvät riippumattomat vertailut Kimistä ovat vielä harvassa. Tämä on itsessään hyödyllinen havainto seurannan kannalta. Se kertoo, että kentässä on tilaa laadukkaille käytännön testeille. Oman kokeilun arvo nousee, kun valmiita vertailuja ei ole saatavilla. Seuraavilla ajoilla Kimi-hakusanoja on syytä laajentaa muun muassa käsittämään agenttitestit ja koodaustyönkalut. Myös suomenkielinen hakusanasto kannattaa pitää mukana. Raportoidaan uudelleen, kun ikkunaan osuu uutta sisältöä.' },
+  ]
+};
+
+const LS = 'kiinnostukset-v1';
+let items = JSON.parse(localStorage.getItem(LS) || 'null') || DEFAULTS;
+let editMode = false, pickedIcon = ICONS[0];
+
+const grid = document.getElementById('grid'), sheet = document.getElementById('sheet'), toast = document.getElementById('toast');
+const reader = document.getElementById('reader'), readerList = document.getElementById('readerList'), readerTitle = document.getElementById('readerTitle');
+const art = document.getElementById('art'), artBody = document.getElementById('artBody');
+
+function save(){ localStorage.setItem(LS, JSON.stringify(items)); }
+function showToast(msg){ toast.textContent = msg; toast.classList.add('show'); setTimeout(()=>toast.classList.remove('show'),1600); }
+function openSheet(){ pickedIcon = ICONS[0]; buildPicker(); document.getElementById('nameInput').value=''; sheet.classList.add('open'); setTimeout(()=>document.getElementById('nameInput').focus(),300); }
+
+function render(){
+  grid.innerHTML = '';
+  items.forEach((it,idx)=>{
+    const t = document.createElement('div');
+    t.className = 'tile' + (it.sel ? ' selected' : '');
+    t.style.animationDelay = (idx*0.03)+'s';
+    t.innerHTML = `<button class="del">✕</button>
+                   <div class="icon"><i data-lucide="${it.icon}"></i></div>
+                   <div class="label">${it.name}</div>`;
+    t.querySelector('.del').onclick = e => { e.stopPropagation(); items = items.filter(x=>x.id!==it.id); save(); render(); showToast('Poistettu: '+it.name); };
+    t.onclick = () => { if(editMode) return; openReader(it); };
+    grid.appendChild(t);
+  });
+  const a = document.createElement('div');
+  a.className = 'tile add-tile';
+  a.style.animationDelay = (items.length*0.03)+'s';
+  a.innerHTML = `<div class="icon"><i data-lucide="plus"></i></div><div class="label">Lisää aihe</div>`;
+  a.onclick = () => { if(!editMode) openSheet(); };
+  grid.appendChild(a);
+  lucide.createIcons();
+}
+
+function openReader(it){
+  readerTitle.innerHTML = it.name + '<span class="sub">Viimeiset 30 päivää</span>';
+  const news = SAMPLE_NEWS[it.id];
+  if(!news){
+    readerList.innerHTML = '<div class="reader-empty">Ei vielä sisältöä tälle aiheelle.<br>Seuranta käynnistyy maanantaina.</div>';
+  } else {
+    readerList.innerHTML = news.map((n,i) =>
+      `<div class="news" data-i="${i}">
+        <span class="n-tag">${n.tag}</span>${n.long ? ' <span class="n-tag long">PITKÄ</span>' : ''}
+        <div class="n-title">${n.title}</div>
+        <div class="n-sum">${n.s5}</div>
+        <div class="n-meta">${n.src} · ${n.date}</div>
+      </div>`).join('');
+    readerList.querySelectorAll('.news').forEach(el => {
+      el.onclick = () => openArticle(news[+el.dataset.i]);
+    });
+  }
+  lucide.createIcons();
+  reader.classList.add('open');
+}
+
+/* Artikkelinäkymä: 1) tiivistelmä ~5 lausetta, 2) ~30 lausetta TAI koko artikkeli
+   suomeksi jos alle 30 lausetta, 3) linkki alkuperäiseen */
+function openArticle(n){
+  const box2title = n.long ? 'Laajempi tiivistelmä · n. 30 lausetta' : 'Koko artikkeli suomeksi · alle 30 lausetta';
+  let html = `<h3>${n.title}</h3><div class="a-meta">${n.src} · ${n.date}</div>
+    <div class="sum-box"><div class="sb-title"><i data-lucide="align-left"></i> Tiivistelmä · n. 5 lausetta</div><p>${n.s5}</p></div>
+    <div class="sum-box gold"><div class="sb-title"><i data-lucide="file-text"></i> ${box2title}</div><p>${n.s30}</p></div>`;
+  if(n.url){
+    html += `<a class="full-btn" href="${n.url}" target="_blank" rel="noopener">Alkuperäinen artikkeli <i data-lucide="external-link"></i></a>`;
+  } else {
+    html += `<div class="reader-empty" style="margin-top:20px;">Alkuperäistä linkkiä ei vielä saatavilla prototyypissä.</div>`;
+  }
+  artBody.innerHTML = html;
+  lucide.createIcons();
+  art.classList.add('open');
+}
+document.getElementById('backBtn').onclick = () => reader.classList.remove('open');
+document.getElementById('artBackBtn').onclick = () => art.classList.remove('open');
+
+function buildPicker(){
+  const p = document.getElementById('iconPicker'); p.innerHTML = '';
+  ICONS.forEach(ic=>{
+    const b = document.createElement('div');
+    b.className = 'icon-pick' + (ic===pickedIcon?' sel':'');
+    b.innerHTML = `<i data-lucide="${ic}"></i>`;
+    b.onclick = ()=>{ pickedIcon = ic; buildPicker(); };
+    p.appendChild(b);
+  });
+  lucide.createIcons();
+}
+document.getElementById('saveBtn').onclick = () => {
+  const name = document.getElementById('nameInput').value.trim();
+  if(!name){ showToast('Anna nimi'); return; }
+  items.push({ id: Date.now().toString(), name, icon: pickedIcon, sel:false });
+  save(); render(); sheet.classList.remove('open');
+  showToast('Lisätty: ' + name);
+};
+document.getElementById('nameInput').addEventListener('keydown', e => { if(e.key==='Enter') document.getElementById('saveBtn').click(); });
+
+document.getElementById('editBtn').onclick = () => {
+  editMode = !editMode;
+  document.body.classList.toggle('editing', editMode);
+  showToast(editMode ? 'Poistotila päällä – napauta ✕' : 'Valmis');
+};
+sheet.addEventListener('click', e => { if(e.target===sheet) sheet.classList.remove('open'); });
+
+render();
+</script>
+</body>
+</html>
